@@ -51,10 +51,29 @@ jobs:
 
 
     - name: Replace
+      shell: pwsh
+      env:
+        MS_CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        CF_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
       run: |
-        (gc "Plain Craft Launcher 2\Modules\ModSecret.vb") -replace 'Public OAuthClientId As String = If(Environment.GetEnvironmentVariable("PCL_MS_CLIENT_ID"), "")', 'Public OAuthClientId As String = If(Environment.GetEnvironmentVariable("PCL_MS_CLIENT_ID"), "${{ secrets.CLIENT_ID }}")' | Out-File "Plain Craft Launcher 2\Modules\ModSecret.vb"
-        (gc "Plain Craft Launcher 2\Modules\ModSecret.vb") -replace 'Public CurseForgeAPIKey As String = If(Environment.GetEnvironmentVariable("PCL_CURSEFORGE_API_KEY"), "")', 'Public CurseForgeAPIKey As String = If(Environment.GetEnvironmentVariable("PCL_CURSEFORGE_API_KEY"), "${{ secrets.CURSEFORGE_API_KEY }}")' | Out-File "Plain Craft Launcher 2\Modules\ModSecret.vb"
-        (gc "Plain Craft Launcher 2\Modules\Base\ModBase.vb") -replace 'Public Const CommitHash As String = ""', 'Public Const CommitHash As String = "${{ github.sha }}"' | Out-File "Plain Craft Launcher 2\Modules\Base\ModBase.vb"
+        $p = "Plain Craft Launcher 2\Modules\ModSecret.vb"
+        $c = [IO.File]::ReadAllText($p, [Text.Encoding]::UTF8)
+
+        $c = $c.Replace(
+          'If(Environment.GetEnvironmentVariable("PCL_MS_CLIENT_ID"), "")',
+          'If(Environment.GetEnvironmentVariable("PCL_MS_CLIENT_ID"), "' + $env:MS_CLIENT_ID + '")')
+        $c = $c.Replace(
+          'If(Environment.GetEnvironmentVariable("PCL_CURSEFORGE_API_KEY"), "")',
+          'If(Environment.GetEnvironmentVariable("PCL_CURSEFORGE_API_KEY"), "' + $env:CF_API_KEY + '")')
+        $c = $c.Replace(
+          'Public Const CommitHash As String = ""',
+          'Public Const CommitHash As String = "${{ github.sha }}"')
+
+        [IO.File]::WriteAllText($p, $c, (New-Object Text.UTF8Encoding($false)))
+
+        foreach ($n in 'PCL_MS_CLIENT_ID','PCL_CURSEFORGE_API_KEY') {
+          if ($c -match ('GetEnvironmentVariable\("' + $n + '"\), ""')) { throw "替换未生效: $n" }
+        }
         
     - name: Restore NuGet Packages
       run: dotnet restore PCLCS\PCLCS.csproj
